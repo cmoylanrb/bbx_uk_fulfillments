@@ -74,7 +74,7 @@ jobs:
           --memory=${{ env.MEMORY }} \
           --timeout=${{ env.TIMEOUT }} \
           --service-account=web-bq@${{ env.PROJECT_ID }}.iam.gserviceaccount.com \
-          --build-service-account=github-actions@${{ env.PROJECT_ID }}.iam.gserviceaccount.com \
+          --build-service-account=projects/${{ env.PROJECT_ID }}/serviceAccounts/github-actions@${{ env.PROJECT_ID }}.iam.gserviceaccount.com \
           --env-vars-file=env-vars.yaml \
           --project=${{ env.PROJECT_ID }}
     
