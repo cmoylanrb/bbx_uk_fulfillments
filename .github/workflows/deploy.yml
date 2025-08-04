@@ -32,37 +32,37 @@ jobs:
       run: |
         # Create env-vars file to avoid issues with commas in values
         cat > env-vars.yaml << EOF
-        BQ_PROJECT: ${{ env.PROJECT_ID }}
-        BQ_DATASET: ${{ vars.BQ_DATASET }}
-        BQ_SCOPES: ${{ vars.BQ_SCOPES }}
-        BQ_BATCH_SIZE: ${{ vars.BQ_BATCH_SIZE }}
-        LOG_LEVEL: ${{ vars.LOG_LEVEL }}
-        MAX_RETRIES: ${{ vars.MAX_RETRIES }}
-        BQ_FULFILLMENT_LINES_VIEW: ${{ vars.BQ_FULFILLMENT_LINES_VIEW }}
-        BQ_FULFILLMENT_LIST_VIEW: ${{ vars.BQ_FULFILLMENT_LIST_VIEW }}
-        BQ_STATUS_TABLE: ${{ vars.BQ_STATUS_TABLE }}
-        BQ_WAVE_TABLE: ${{ vars.BQ_WAVE_TABLE }}
-        BQ_SHIPMENTS_TABLE: ${{ vars.BQ_SHIPMENTS_TABLE }}
-        BQ_SHIPMENTS_VIEW: ${{ vars.BQ_SHIPMENTS_VIEW }}
-        BQ_STOCK_TABLE: ${{ vars.BQ_STOCK_TABLE }}
-        BQ_STOCK_VIEW: ${{ vars.BQ_STOCK_VIEW }}
-        SHOPIFY_API_VERSION: ${{ vars.SHOPIFY_API_VERSION }}
-        SHOPIFY_STORE_URL: ${{ vars.SHOPIFY_STORE_URL }}
-        SHOPIFY_LOCATION_ID: ${{ vars.SHOPIFY_LOCATION_ID }}
-        SHOPIFY_FF_MESSAGE: ${{ vars.SHOPIFY_FF_MESSAGE }}
-        SHOPIFY_BATCH_SIZE: ${{ vars.SHOPIFY_BATCH_SIZE }}
-        SHOPIFY_FETCH_BATCH_SIZE: ${{ vars.SHOPIFY_FETCH_BATCH_SIZE }}
-        SHOPIFY_UPDATE_BATCH_SIZE: ${{ vars.SHOPIFY_UPDATE_BATCH_SIZE }}
-        SFTP_HOST: ${{ vars.SFTP_HOST }}
-        SFTP_PORT: ${{ vars.SFTP_PORT }}
-        SFTP_DOWNLOAD_PATH: ${{ vars.SFTP_DOWNLOAD_PATH }}
-        SFTP_DOWNLOAD_ARCHIVE_PATH: ${{ vars.SFTP_DOWNLOAD_ARCHIVE_PATH }}
-        SFTP_UPLOAD_PATH: ${{ vars.SFTP_UPLOAD_PATH }}
-        SFTP_UPLOAD_ARCHIVE_PATH: ${{ vars.SFTP_UPLOAD_ARCHIVE_PATH }}
-        STOCK_FNAME_PREFIX: ${{ vars.STOCK_FNAME_PREFIX }}
-        SHIPMENTS_FNAME_PREFIX: ${{ vars.SHIPMENTS_FNAME_PREFIX }}
+        BQ_PROJECT: "${{ env.PROJECT_ID }}"
+        BQ_DATASET: "${{ vars.BQ_DATASET }}"
+        BQ_SCOPES: "${{ vars.BQ_SCOPES }}"
+        BQ_BATCH_SIZE: "${{ vars.BQ_BATCH_SIZE }}"
+        LOG_LEVEL: "${{ vars.LOG_LEVEL }}"
+        MAX_RETRIES: "${{ vars.MAX_RETRIES }}"
+        BQ_FULFILLMENT_LINES_VIEW: "${{ vars.BQ_FULFILLMENT_LINES_VIEW }}"
+        BQ_FULFILLMENT_LIST_VIEW: "${{ vars.BQ_FULFILLMENT_LIST_VIEW }}"
+        BQ_STATUS_TABLE: "${{ vars.BQ_STATUS_TABLE }}"
+        BQ_WAVE_TABLE: "${{ vars.BQ_WAVE_TABLE }}"
+        BQ_SHIPMENTS_TABLE: "${{ vars.BQ_SHIPMENTS_TABLE }}"
+        BQ_SHIPMENTS_VIEW: "${{ vars.BQ_SHIPMENTS_VIEW }}"
+        BQ_STOCK_TABLE: "${{ vars.BQ_STOCK_TABLE }}"
+        BQ_STOCK_VIEW: "${{ vars.BQ_STOCK_VIEW }}"
+        SHOPIFY_API_VERSION: "${{ vars.SHOPIFY_API_VERSION }}"
+        SHOPIFY_STORE_URL: "${{ vars.SHOPIFY_STORE_URL }}"
+        SHOPIFY_LOCATION_ID: "${{ vars.SHOPIFY_LOCATION_ID }}"
+        SHOPIFY_FF_MESSAGE: "${{ vars.SHOPIFY_FF_MESSAGE }}"
+        SHOPIFY_BATCH_SIZE: "${{ vars.SHOPIFY_BATCH_SIZE }}"
+        SHOPIFY_FETCH_BATCH_SIZE: "${{ vars.SHOPIFY_FETCH_BATCH_SIZE }}"
+        SHOPIFY_UPDATE_BATCH_SIZE: "${{ vars.SHOPIFY_UPDATE_BATCH_SIZE }}"
+        SFTP_HOST: "${{ vars.SFTP_HOST }}"
+        SFTP_PORT: "${{ vars.SFTP_PORT }}"
+        SFTP_DOWNLOAD_PATH: "${{ vars.SFTP_DOWNLOAD_PATH }}"
+        SFTP_DOWNLOAD_ARCHIVE_PATH: "${{ vars.SFTP_DOWNLOAD_ARCHIVE_PATH }}"
+        SFTP_UPLOAD_PATH: "${{ vars.SFTP_UPLOAD_PATH }}"
+        SFTP_UPLOAD_ARCHIVE_PATH: "${{ vars.SFTP_UPLOAD_ARCHIVE_PATH }}"
+        STOCK_FNAME_PREFIX: "${{ vars.STOCK_FNAME_PREFIX }}"
+        SHIPMENTS_FNAME_PREFIX: "${{ vars.SHIPMENTS_FNAME_PREFIX }}"
         PROLOG_FNAME_TEMPLATE: "${{ vars.PROLOG_FNAME_TEMPLATE }}"
-        TSV_OUTPUT_PATH: ${{ vars.TSV_OUTPUT_PATH }}
+        TSV_OUTPUT_PATH: "${{ vars.TSV_OUTPUT_PATH }}"
         EOF
         
         gcloud functions deploy ${{ env.FUNCTION_NAME }} \
