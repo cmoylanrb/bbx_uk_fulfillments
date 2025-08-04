@@ -12,9 +12,17 @@ def router(request: Request) -> Response:
         # Get the function name from the request path
         function_name = request.path.strip('/') if request.path else ''
         
-        # Default to fulfillments_exp if no function specified
+        # If no function specified in path, check JSON data
         if not function_name:
-            function_name = 'fulfillments_exp'
+            try:
+                import json
+                data = request.get_json()
+                if data and 'route' in data:
+                    function_name = data['route']
+                else:
+                    function_name = 'fulfillments_exp'
+            except:
+                function_name = 'fulfillments_exp'
         
         logging.info(f"Routing to function: {function_name}")
         
