@@ -82,10 +82,10 @@ jobs:
     
     - name: Update Secret Manager
       run: |
-        # Create secrets if they don't exist, then update them
-        echo "${{ secrets.SHOPIFY_ACCESS_TOKEN }}" | gcloud secrets create shopify-access-token --data-file=- --replication-policy="automatic" 2>/dev/null || echo "${{ secrets.SHOPIFY_ACCESS_TOKEN }}" | gcloud secrets versions add shopify-access-token --data-file=-
-        echo "${{ secrets.SFTP_PASSWORD }}" | gcloud secrets create sftp-password --data-file=- --replication-policy="automatic" 2>/dev/null || echo "${{ secrets.SFTP_PASSWORD }}" | gcloud secrets versions add sftp-password --data-file=-
-        echo "${{ secrets.SFTP_USER }}" | gcloud secrets create sftp-user --data-file=- --replication-policy="automatic" 2>/dev/null || echo "${{ secrets.SFTP_USER }}" | gcloud secrets versions add sftp-user --data-file=-
+        # Create secrets if they don't exist, then update them (using printf to avoid newlines)
+        printf "%s" "${{ secrets.SHOPIFY_ACCESS_TOKEN }}" | gcloud secrets create shopify-access-token --data-file=- --replication-policy="automatic" 2>/dev/null || printf "%s" "${{ secrets.SHOPIFY_ACCESS_TOKEN }}" | gcloud secrets versions add shopify-access-token --data-file=-
+        printf "%s" "${{ secrets.SFTP_PASSWORD }}" | gcloud secrets create sftp-password --data-file=- --replication-policy="automatic" 2>/dev/null || printf "%s" "${{ secrets.SFTP_PASSWORD }}" | gcloud secrets versions add sftp-password --data-file=-
+        printf "%s" "${{ secrets.SFTP_USER }}" | gcloud secrets create sftp-user --data-file=- --replication-policy="automatic" 2>/dev/null || printf "%s" "${{ secrets.SFTP_USER }}" | gcloud secrets versions add sftp-user --data-file=-
         
         # Grant function access to Secret Manager
         gcloud projects add-iam-policy-binding ${{ env.PROJECT_ID }} \
