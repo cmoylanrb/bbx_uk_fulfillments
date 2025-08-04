@@ -379,7 +379,7 @@ def get_accepted_orders(is_box_order=False):
         WHERE
             CAST(assigned_location_id AS INTEGER) = {SHOPIFY_LOCATION_ID}
             AND is_box_order IS {'true' if is_box_order else 'false'}
-            AND status LIKE 'accepted%'
+            AND (status LIKE 'accepted%' OR status = 'exported')
         ORDER BY
             fulfillment_order_id ASC,
             sort ASC
