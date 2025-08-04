@@ -69,7 +69,13 @@ _BACKUP/
 test_*.py
 *_test.py
 setup_github_actions.sh
+setup_gcp_infrastructure.sh
 deploy.sh
+
+# Credentials and environment files
+*.json
+env-vars.yaml
+gha-creds-*.json
 
 # GitHub Actions
 .github/
