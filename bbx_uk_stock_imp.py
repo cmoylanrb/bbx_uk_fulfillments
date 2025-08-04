@@ -130,8 +130,10 @@ STOCK_FNAME_PREFIX = os.getenv('STOCK_FNAME_PREFIX')
 def get_bq_client():
     """Get BigQuery client with appropriate credentials."""
     if is_cloud_function():
-        # In Cloud Functions, use default credentials
-        return bigquery.Client(project=BQ_PROJECT)
+        # In Cloud Functions, use default credentials with scopes
+        from google.auth import default
+        credentials, project = default(scopes=BQ_SCOPES)
+        return bigquery.Client(credentials=credentials, project=BQ_PROJECT)
     else:
         # For local development, use service account file
         if BQ_CREDPATH and os.path.exists(BQ_CREDPATH):
