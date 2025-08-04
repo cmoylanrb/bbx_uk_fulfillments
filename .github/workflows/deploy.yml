@@ -1,0 +1,93 @@
+name: Deploy BBX UK Fulfillments Router
+
+on:
+  workflow_dispatch:
+
+env:
+  PROJECT_ID: ${{ vars.PROJECT_ID }}
+  FUNCTION_NAME: ${{ vars.FUNCTION_NAME }}
+  REGION: ${{ vars.REGION }}
+  RUNTIME: ${{ vars.RUNTIME }}
+  MEMORY: ${{ vars.MEMORY }}
+  TIMEOUT: ${{ vars.TIMEOUT }}
+  ENTRY_POINT: ${{ vars.ENTRY_POINT }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Google Auth
+      uses: google-github-actions/auth@v2
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
+        project_id: ${{ env.PROJECT_ID }}
+    
+    - name: Setup Google Cloud CLI
+      uses: google-github-actions/setup-gcloud@v2
+    
+    - name: Deploy Cloud Function
+      run: |
+        gcloud functions deploy ${{ env.FUNCTION_NAME }} \
+          --gen2 \
+          --runtime=${{ env.RUNTIME }} \
+          --region=${{ env.REGION }} \
+          --source=. \
+          --entry-point=${{ env.ENTRY_POINT }} \
+          --trigger-http \
+          --no-allow-unauthenticated \
+          --memory=${{ env.MEMORY }} \
+          --timeout=${{ env.TIMEOUT }} \
+          --service-account=web-bq@${{ env.PROJECT_ID }}.iam.gserviceaccount.com \
+          --build-service-account=projects/${{ env.PROJECT_ID }}/serviceAccounts/github-actions@${{ env.PROJECT_ID }}.iam.gserviceaccount.com \
+          --set-env-vars="\
+        BQ_PROJECT=${{ env.PROJECT_ID }},\
+        BQ_DATASET=${{ vars.BQ_DATASET }},\
+        BQ_BATCH_SIZE=${{ vars.BQ_BATCH_SIZE }},\
+        LOG_LEVEL=${{ vars.LOG_LEVEL }},\
+        BQ_FULFILLMENT_LINES_VIEW=${{ vars.BQ_FULFILLMENT_LINES_VIEW }},\
+        BQ_FULFILLMENT_LIST_VIEW=${{ vars.BQ_FULFILLMENT_LIST_VIEW }},\
+        BQ_STATUS_TABLE=${{ vars.BQ_STATUS_TABLE }},\
+        BQ_WAVE_TABLE=${{ vars.BQ_WAVE_TABLE }},\
+        BQ_SHIPMENTS_TABLE=${{ vars.BQ_SHIPMENTS_TABLE }},\
+        BQ_SHIPMENTS_VIEW=${{ vars.BQ_SHIPMENTS_VIEW }},\
+        BQ_STOCK_TABLE=${{ vars.BQ_STOCK_TABLE }},\
+        BQ_STOCK_VIEW=${{ vars.BQ_STOCK_VIEW }},\
+        SHOPIFY_API_VERSION=${{ vars.SHOPIFY_API_VERSION }},\
+        SHOPIFY_STORE_URL=${{ vars.SHOPIFY_STORE_URL }},\
+        SHOPIFY_LOCATION_ID=${{ vars.SHOPIFY_LOCATION_ID }},\
+        SHOPIFY_FF_MESSAGE=${{ vars.SHOPIFY_FF_MESSAGE }},\
+        SHOPIFY_BATCH_SIZE=${{ vars.SHOPIFY_BATCH_SIZE }},\
+        SHOPIFY_FETCH_BATCH_SIZE=${{ vars.SHOPIFY_FETCH_BATCH_SIZE }},\
+        SHOPIFY_UPDATE_BATCH_SIZE=${{ vars.SHOPIFY_UPDATE_BATCH_SIZE }},\
+        SFTP_HOST=${{ vars.SFTP_HOST }},\
+        SFTP_PORT=${{ vars.SFTP_PORT }},\
+        SFTP_USER=${{ vars.SFTP_USER }},\
+        SFTP_BASE_PATH=${{ vars.SFTP_BASE_PATH }},\
+        SFTP_ARCHIVE_PATH=${{ vars.SFTP_ARCHIVE_PATH }},\
+        PROLOG_FNAME_PREFIX=${{ vars.PROLOG_FNAME_PREFIX }},\
+        TSV_OUTPUT_PATH=${{ vars.TSV_OUTPUT_PATH }}" \
+          --project=${{ env.PROJECT_ID }}
+    
+    - name: Update Secret Manager
+      run: |
+        # Create secrets if they don't exist, then update them
+        echo "${{ secrets.SHOPIFY_ACCESS_TOKEN }}" | gcloud secrets create shopify-access-token --data-file=- --replication-policy="automatic" 2>/dev/null || echo "${{ secrets.SHOPIFY_ACCESS_TOKEN }}" | gcloud secrets versions add shopify-access-token --data-file=-
+        echo "${{ secrets.SFTP_PASSWORD }}" | gcloud secrets create sftp-password --data-file=- --replication-policy="automatic" 2>/dev/null || echo "${{ secrets.SFTP_PASSWORD }}" | gcloud secrets versions add sftp-password --data-file=-
+        
+        # Grant function access to Secret Manager
+        gcloud projects add-iam-policy-binding ${{ env.PROJECT_ID }} \
+          --member=serviceAccount:web-bq@${{ env.PROJECT_ID }}.iam.gserviceaccount.com \
+          --role=roles/secretmanager.secretAccessor
+    
+    - name: Get Function URL
+      run: |
+        echo "Router Function URL: $(gcloud functions describe ${{ env.FUNCTION_NAME }} --region=${{ env.REGION }} --project=${{ env.PROJECT_ID }} --format='value(serviceConfig.uri)')"
+        echo ""
+        echo "Available endpoints:"
+        echo "  - / (defaults to fulfillments_exp)"
+        echo "  - /fulfillments_exp"
+        echo "  - /shipments_imp"
+        echo "  - /stock_imp" 
