@@ -77,7 +77,7 @@ jobs:
           --build-service-account=projects/${{ env.PROJECT_ID }}/serviceAccounts/github-actions@${{ env.PROJECT_ID }}.iam.gserviceaccount.com \
           --env-vars-file=env-vars.yaml \
           --vpc-connector=cf-vpc-conn \
-          --egress-settings=ALL_TRAFFIC \
+          --egress-settings=ALL \
           --project=${{ env.PROJECT_ID }}
     
     - name: Update Secret Manager
