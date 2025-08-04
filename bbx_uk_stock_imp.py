@@ -20,6 +20,19 @@ def is_cloud_function():
     """Check if running in Google Cloud Functions environment."""
     return os.getenv('K_SERVICE') is not None
 
+def get_output_path():
+    """Get the output path for temporary files."""
+    if is_cloud_function():
+        # In Cloud Functions, use tempfile
+        import tempfile
+        return tempfile.mkdtemp()
+    else:
+        # For local development, use TSV_OUTPUT_PATH if it exists
+        tsv_path = os.getenv('TSV_OUTPUT_PATH')
+        if not tsv_path or not os.path.exists(tsv_path):
+            raise FileNotFoundError(f"Local output directory {tsv_path} does not exist.")
+        return tsv_path
+
 # Load .env file only for local development
 if not is_cloud_function():
     from dotenv import load_dotenv
@@ -112,7 +125,6 @@ SFTP_PASSWORD = get_secret('sftp-password', BQ_PROJECT) or os.getenv('SFTP_PASSW
 SFTP_DOWNLOAD_PATH = os.getenv('SFTP_DOWNLOAD_PATH')
 SFTP_DOWNLOAD_ARCHIVE_PATH = os.getenv('SFTP_DOWNLOAD_ARCHIVE_PATH')
 STOCK_FNAME_PREFIX = os.getenv('STOCK_FNAME_PREFIX')
-TSV_OUTPUT_PATH = os.getenv('TSV_OUTPUT_PATH')
 
 # Initialize BigQuery client
 def get_bq_client():
@@ -140,8 +152,11 @@ def load_files_to_bigquery():
         # Get the current UTC time
         current_utc_time = datetime.now(timezone.utc).isoformat()
 
+        # Get output path
+        output_path = get_output_path()
+
         # List all files in the local directory
-        files = os.listdir(TSV_OUTPUT_PATH)
+        files = os.listdir(output_path)
         matching_files = [filename for filename in files if filename.startswith(STOCK_FNAME_PREFIX)]
         if not matching_files:
             logging.info("No matching local files found.")
@@ -149,8 +164,8 @@ def load_files_to_bigquery():
 
         logging.info(f"Found matching local files: {matching_files}")
         for filename in matching_files:
-            local_file_path = os.path.join(TSV_OUTPUT_PATH, filename)
-            done_file_path = os.path.join(TSV_OUTPUT_PATH, f"_DONE_{filename}")
+            local_file_path = os.path.join(output_path, filename)
+            done_file_path = os.path.join(output_path, f"_DONE_{filename}")
             uniq_id = str(uuid.uuid4())
             temp_table_name = f"{BQ_STOCK_TABLE.split('.')[-1]}_{uniq_id[:8].replace('-', '')}"#-
 
@@ -333,10 +348,13 @@ def download_and_archive_files():
             logging.error(f"Failed to list files in SFTP directory: {e}")
             raise
 
+        # Get output path
+        output_path = get_output_path()
+
         for filename in matching_files:
             try:
                 remote_file_path = os.path.join(SFTP_DOWNLOAD_PATH, filename)
-                local_file_path = os.path.join(TSV_OUTPUT_PATH, filename)
+                local_file_path = os.path.join(output_path, filename)
 
                 # Download the file
                 sftp.get(remote_file_path, local_file_path)
