@@ -76,10 +76,7 @@ else:
 BQ_PROJECT = os.getenv('BQ_PROJECT')
 BQ_DATASET = os.getenv('BQ_DATASET')
 BQ_CREDPATH = os.getenv('BQ_CREDPATH')
-BQ_SCOPES = [
-    'https://www.googleapis.com/auth/cloud-platform', 
-    'https://www.googleapis.com/auth/drive'         
-]
+BQ_SCOPES = os.getenv('BQ_SCOPES').split(',') if os.getenv('BQ_SCOPES') else []
 BQ_BATCH_SIZE = int(os.getenv('BQ_BATCH_SIZE', '500'))
 
 # Tables / Views
@@ -94,7 +91,7 @@ SHOPIFY_ACCESS_TOKEN = get_secret('shopify-access-token', BQ_PROJECT) or os.gete
 SHOPIFY_STORE_URL = os.getenv('SHOPIFY_STORE_URL')
 SHOPIFY_API_URL = f"{SHOPIFY_STORE_URL}/admin/api/{SHOPIFY_API_VERSION}/graphql.json"
 SHOPIFY_LOCATION_ID = os.getenv('SHOPIFY_LOCATION_ID')
-SHOPIFY_FF_MESSAGE = os.getenv('SHOPIFY_FF_MESSAGE', 'Accepted.')
+SHOPIFY_FF_MESSAGE = os.getenv('SHOPIFY_FF_MESSAGE')
 SHOPIFY_BATCH_SIZE = int(os.getenv('SHOPIFY_BATCH_SIZE', '50'))
 SHOPIFY_HEADERS = {
     "Content-Type": "application/json",
@@ -106,11 +103,9 @@ SFTP_HOST = os.getenv('SFTP_HOST')
 SFTP_PORT = int(os.getenv('SFTP_PORT', '22'))
 SFTP_USER = get_secret('sftp-user', BQ_PROJECT) or os.getenv('SFTP_USER')
 SFTP_PASSWORD = get_secret('sftp-password', BQ_PROJECT) or os.getenv('SFTP_PASSWORD')
-SFTP_BASE_PATH = os.getenv('SFTP_BASE_PATH')
-
-# File Configuration
-PROLOG_FNAME_TEMPLATE = os.getenv('PROLOG_FNAME_TEMPLATE', "{is_box_orders}BBXORD{filename_string}-PRO.txt")
-TSV_OUTPUT_PATH = os.getenv('TSV_OUTPUT_PATH', '/tmp')
+SFTP_UPLOAD_PATH = os.getenv('SFTP_UPLOAD_PATH')
+PROLOG_FNAME_TEMPLATE = os.getenv('PROLOG_FNAME_TEMPLATE')
+TSV_OUTPUT_PATH = os.getenv('TSV_OUTPUT_PATH')
 MAX_RETRIES = int(os.getenv('MAX_RETRIES', '30'))
 
 # ------------------------------------------------------------------------------
@@ -436,7 +431,7 @@ def export_to_tsv(query_results, is_box_orders=False):
 
     # Attempt to upload the TSV file to SFTP
     try:
-        send_to_sftp(tsv_path)
+        send_to_sftp(tsv_path, is_box_orders=is_box_orders)
         # Upsert status as "uploaded"
         logging.info(f"Updating {len(unique_orders_to_update)} status table entries to 'uploaded'.")
         upsert_order_status(unique_orders_to_update, "uploaded")
@@ -454,13 +449,13 @@ def export_to_tsv(query_results, is_box_orders=False):
     return tsv_path
 
 @retry(stop=stop_after_attempt(5), wait=wait_fixed(5))
-def send_to_sftp(tsv_path):
+def send_to_sftp(tsv_path, is_box_orders=False):
     plogger = paramiko.util.logging.getLogger()
     plogger.setLevel(paramiko.util.logging.INFO)
     try:
         # Generate remote filename using the same pattern as get_file_name
-        filename = get_file_name(is_box_orders=False)  # We'll determine this from the path or pass as parameter
-        remote_filepath = os.path.join(SFTP_BASE_PATH, filename)
+        filename = get_file_name(is_box_orders=is_box_orders)
+        remote_filepath = os.path.join(SFTP_UPLOAD_PATH, filename)
         logging.info(f"Attempting to upload file {tsv_path} to SFTP ({remote_filepath})")
         transport = paramiko.Transport((SFTP_HOST, SFTP_PORT))
         transport.connect(username=SFTP_USER, password=SFTP_PASSWORD)

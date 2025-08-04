@@ -84,11 +84,8 @@ BIG_COMMITTED_THRESHOLD = 0.5 # Flag if committed > 50% of warehouse stock
 BQ_PROJECT = os.getenv('BQ_PROJECT')
 BQ_DATASET = os.getenv('BQ_DATASET')
 BQ_CREDPATH = os.getenv('BQ_CREDPATH')
-BQ_SCOPES = [
-    'https://www.googleapis.com/auth/cloud-platform', 
-    'https://www.googleapis.com/auth/drive'         
-]
-BQ_BATCH_SIZE = int(os.getenv('BQ_BATCH_SIZE', '40'))
+BQ_SCOPES = os.getenv('BQ_SCOPES').split(',') if os.getenv('BQ_SCOPES') else []
+BQ_BATCH_SIZE = int(os.getenv('BQ_BATCH_SIZE', '500'))
 
 # Tables / Views
 BQ_STOCK_TABLE = f"{BQ_DATASET}.bbx_wh_stock_uk"
@@ -110,12 +107,12 @@ SHOPIFY_HEADERS = {
 # SFTP Configuration
 SFTP_HOST = os.getenv('SFTP_HOST')
 SFTP_PORT = int(os.getenv('SFTP_PORT', '22'))
-SFTP_USER = os.getenv('SFTP_USER')
+SFTP_USER = get_secret('sftp-user', BQ_PROJECT) or os.getenv('SFTP_USER')
 SFTP_PASSWORD = get_secret('sftp-password', BQ_PROJECT) or os.getenv('SFTP_PASSWORD')
-SFTP_BASE_PATH = os.getenv('SFTP_BASE_PATH', '/Live/imports-in')
-SFT_ARCHIVE_PATH = os.getenv('SFTP_ARCHIVE_PATH', '/Live/imports-in/Archive')
-PROLOG_FNAME_PREFIX = os.getenv('PROLOG_FNAME_PREFIX', 'BBX_Stock_Status_Report')
-TSV_OUTPUT_PATH = os.getenv('TSV_OUTPUT_PATH', '/tmp/bbx_uk_imp')
+SFTP_DOWNLOAD_PATH = os.getenv('SFTP_DOWNLOAD_PATH')
+SFTP_DOWNLOAD_ARCHIVE_PATH = os.getenv('SFTP_DOWNLOAD_ARCHIVE_PATH')
+STOCK_FNAME_PREFIX = os.getenv('STOCK_FNAME_PREFIX')
+TSV_OUTPUT_PATH = os.getenv('TSV_OUTPUT_PATH')
 
 # Initialize BigQuery client
 def get_bq_client():
@@ -145,7 +142,7 @@ def load_files_to_bigquery():
 
         # List all files in the local directory
         files = os.listdir(TSV_OUTPUT_PATH)
-        matching_files = [filename for filename in files if filename.startswith(PROLOG_FNAME_PREFIX)]
+        matching_files = [filename for filename in files if filename.startswith(STOCK_FNAME_PREFIX)]
         if not matching_files:
             logging.info("No matching local files found.")
             return
@@ -325,8 +322,8 @@ def download_and_archive_files():
 
         try:
             # List files matching the prefix
-            files = sftp.listdir(SFTP_BASE_PATH)
-            matching_files = [f for f in files if f.startswith(PROLOG_FNAME_PREFIX)]
+            files = sftp.listdir(SFTP_DOWNLOAD_PATH)
+            matching_files = [f for f in files if f.startswith(STOCK_FNAME_PREFIX)]
             if not matching_files:
                 logging.info("No matching SFTP files found")
                 return
@@ -338,7 +335,7 @@ def download_and_archive_files():
 
         for filename in matching_files:
             try:
-                remote_file_path = os.path.join(SFTP_BASE_PATH, filename)
+                remote_file_path = os.path.join(SFTP_DOWNLOAD_PATH, filename)
                 local_file_path = os.path.join(TSV_OUTPUT_PATH, filename)
 
                 # Download the file
@@ -351,7 +348,7 @@ def download_and_archive_files():
 
                 if local_file_size == remote_file_size:
                     # Move the file to the archive path
-                    archive_path = os.path.join(SFT_ARCHIVE_PATH, filename)
+                    archive_path = os.path.join(SFTP_DOWNLOAD_ARCHIVE_PATH, filename)
                     sftp.rename(remote_file_path, archive_path)
                     logging.info(f"Moved file {filename} to {archive_path}")
                 else:

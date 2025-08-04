@@ -24,6 +24,20 @@ if not is_cloud_function():
     from dotenv import load_dotenv
     load_dotenv()
 
+# Get the appropriate output path
+def get_output_path():
+    """Get the appropriate output path for files."""
+    if is_cloud_function():
+        # In Cloud Functions, use tempfile
+        import tempfile
+        return tempfile.mkdtemp()
+    else:
+        # For local development, use TSV_OUTPUT_PATH if it exists
+        tsv_path = os.getenv('TSV_OUTPUT_PATH')
+        if not tsv_path or not os.path.exists(tsv_path):
+            raise FileNotFoundError(f"Local output directory {tsv_path} does not exist.")
+        return tsv_path
+
 # Secret Manager functions
 def get_secret_manager_client():
     """Get Secret Manager client with appropriate credentials."""
@@ -52,7 +66,9 @@ def get_secret(secret_name, project_id):
     env_var = secret_name.replace('-', '_').upper()
     return os.getenv(env_var)
 
-# --- Logging Setup ---
+# ------------------------------------------------------------------------------
+# Logging Setup
+# ------------------------------------------------------------------------------
 log_level = os.getenv('LOG_LEVEL', 'INFO')
 
 if is_cloud_function():
@@ -75,11 +91,8 @@ else:
 BQ_PROJECT = os.getenv('BQ_PROJECT')
 BQ_DATASET = os.getenv('BQ_DATASET')
 BQ_CREDPATH = os.getenv('BQ_CREDPATH')
-BQ_SCOPES = [
-    'https://www.googleapis.com/auth/cloud-platform', 
-    'https://www.googleapis.com/auth/drive'         
-]
-BQ_BATCH_SIZE = int(os.getenv('BQ_BATCH_SIZE', '20'))
+BQ_SCOPES = os.getenv('BQ_SCOPES').split(',') if os.getenv('BQ_SCOPES') else []
+BQ_BATCH_SIZE = int(os.getenv('BQ_BATCH_SIZE', '500'))
 
 # Tables / Views
 BQ_SHIPMENTS_TABLE = f"{BQ_DATASET}.bbx_wh_shipments_uk"
@@ -92,7 +105,7 @@ SHOPIFY_ACCESS_TOKEN = get_secret('shopify-access-token', BQ_PROJECT) or os.gete
 SHOPIFY_STORE_URL = os.getenv('SHOPIFY_STORE_URL')
 SHOPIFY_API_URL = f"{SHOPIFY_STORE_URL}/admin/api/{SHOPIFY_API_VERSION}/graphql.json"
 SHOPIFY_LOCATION_ID = os.getenv('SHOPIFY_LOCATION_ID')
-SHOPIFY_FF_MESSAGE = os.getenv('SHOPIFY_FF_MESSAGE', 'Accepted.')
+SHOPIFY_FF_MESSAGE = os.getenv('SHOPIFY_FF_MESSAGE')
 SHOPIFY_BATCH_SIZE = int(os.getenv('SHOPIFY_BATCH_SIZE', '20'))
 SHOPIFY_HEADERS = {
     "Content-Type": "application/json",
@@ -102,12 +115,12 @@ SHOPIFY_HEADERS = {
 # SFTP Configuration
 SFTP_HOST = os.getenv('SFTP_HOST')
 SFTP_PORT = int(os.getenv('SFTP_PORT', '22'))
-SFTP_USER = os.getenv('SFTP_USER')
+SFTP_USER = get_secret('sftp-user', BQ_PROJECT) or os.getenv('SFTP_USER')
 SFTP_PASSWORD = get_secret('sftp-password', BQ_PROJECT) or os.getenv('SFTP_PASSWORD')
-SFTP_BASE_PATH = os.getenv('SFTP_BASE_PATH', '/Live/imports-in')
-SFT_ARCHIVE_PATH = os.getenv('SFTP_ARCHIVE_PATH', '/Live/imports-in/Archive')
-PROLOG_FNAME_PREFIX = os.getenv('PROLOG_FNAME_PREFIX', 'CSH')
-TSV_OUTPUT_PATH = os.getenv('TSV_OUTPUT_PATH', '/tmp/bbx_uk_imp')
+SFTP_DOWNLOAD_PATH = os.getenv('SFTP_DOWNLOAD_PATH')
+SFTP_DOWNLOAD_ARCHIVE_PATH = os.getenv('SFTP_DOWNLOAD_ARCHIVE_PATH')
+SHIPMENTS_FNAME_PREFIX = os.getenv('SHIPMENTS_FNAME_PREFIX', 'CSH')
+TSV_OUTPUT_PATH = os.getenv('TSV_OUTPUT_PATH')
 
 # Initialize BigQuery client
 def get_bq_client():
@@ -123,8 +136,11 @@ def get_bq_client():
         else:
             # Fallback to default credentials
             return bigquery.Client(project=BQ_PROJECT)
-
 BQ_CLIENT = get_bq_client()
+
+# ------------------------------------------------------------------------------
+# Helper Functions
+# ------------------------------------------------------------------------------
 
 def chunks(lst, n):
     for i in range(0, len(lst), n):
@@ -183,7 +199,8 @@ def upsert_order_status(orders):
             logging.error(f"Failed to upsert batch of shipments: {e}")
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
-def download_and_archive_files():
+def download_sftp_files(output_path):
+    """Download files from SFTP with retry logic."""
     try:
         transport = paramiko.Transport((SFTP_HOST, SFTP_PORT))
         transport.connect(username=SFTP_USER, password=SFTP_PASSWORD)
@@ -191,21 +208,22 @@ def download_and_archive_files():
 
         try:
             # List files matching the prefix
-            files = sftp.listdir(SFTP_BASE_PATH)
-            matching_files = [f for f in files if f.startswith(PROLOG_FNAME_PREFIX)]
+            files = sftp.listdir(SFTP_DOWNLOAD_PATH)
+            matching_files = [f for f in files if f.startswith(SHIPMENTS_FNAME_PREFIX)]
             if not matching_files:
                 logging.info("No matching SFTP files found")
-                return
+                return []
 
             logging.info(f"Found matching SFTP files: {matching_files}")
         except Exception as e:
             logging.error(f"Failed to list files in SFTP directory: {e}")
             raise
 
+        downloaded_files = []
         for filename in matching_files:
             try:
-                remote_file_path = os.path.join(SFTP_BASE_PATH, filename)
-                local_file_path = os.path.join(TSV_OUTPUT_PATH, filename)
+                remote_file_path = os.path.join(SFTP_DOWNLOAD_PATH, filename)
+                local_file_path = os.path.join(output_path, filename)
 
                 # Download the file
                 sftp.get(remote_file_path, local_file_path)
@@ -217,14 +235,17 @@ def download_and_archive_files():
 
                 if local_file_size == remote_file_size:
                     # Move the file to the archive path
-                    archive_path = os.path.join(SFT_ARCHIVE_PATH, filename)
+                    archive_path = os.path.join(SFTP_DOWNLOAD_ARCHIVE_PATH, filename)
                     sftp.rename(remote_file_path, archive_path)
                     logging.info(f"Moved file {filename} to {archive_path}")
+                    downloaded_files.append(filename)
                 else:
                     logging.error(f"File size mismatch for {filename}: local size {local_file_size}, remote size {remote_file_size}")
             except Exception as e:
                 logging.error(f"Failed to process file {filename}: {e}")
                 raise
+        
+        return downloaded_files
     except Exception as e:
         logging.error(f"Failed to process files from SFTP: {e}")
         raise
@@ -234,22 +255,34 @@ def download_and_archive_files():
         if 'transport' in locals():
             transport.close()
 
-def load_files_to_bigquery():
+def download_and_archive_files():
+    """Download and archive files from SFTP."""
+    output_path = get_output_path()
+    logging.info(f"Using output path: {output_path}")
+    
+    downloaded_files = download_sftp_files(output_path)
+    
+    if downloaded_files:
+        return output_path
+    else:
+        return None
+
+def load_files_to_bigquery(output_path):
     try:
         # Get the current UTC time
         current_utc_time = datetime.now(timezone.utc).isoformat()
 
         # List all files in the local directory
-        files = os.listdir(TSV_OUTPUT_PATH)
-        matching_files = [filename for filename in files if filename.startswith(PROLOG_FNAME_PREFIX)]
+        files = os.listdir(output_path)
+        matching_files = [filename for filename in files if filename.startswith(SHIPMENTS_FNAME_PREFIX)]
         if not matching_files:
             logging.info("No matching local files found.")
             return
 
         logging.info(f"Found matching local files: {matching_files}")
         for filename in matching_files:
-            local_file_path = os.path.join(TSV_OUTPUT_PATH, filename)
-            done_file_path = os.path.join(TSV_OUTPUT_PATH, f"_DONE_{filename}")
+            local_file_path = os.path.join(output_path, filename)
+            done_file_path = os.path.join(output_path, f"_DONE_{filename}")
 
             # Check if the filename already exists in the BigQuery table
             logging.info(f"Checking local file {filename}...")
@@ -353,7 +386,6 @@ def load_files_to_bigquery():
                         if row[field] is not None:
                             try:
                                 parsed_date = datetime.strptime(row[field], '%Y/%m/%d')
-                                # Convert the date to a string in the desired format
                                 row[field] = parsed_date.strftime('%Y-%m-%d')
                             except ValueError:
                                 row[field] = None
@@ -368,14 +400,13 @@ def load_files_to_bigquery():
                     row["uniq_id"] = uniq_id
                     row["status"] = "loaded"
 
-                # Use the BigQuery client to load data into a temporary table
+                # load data into a temporary table
                 temp_table_name = f"{BQ_SHIPMENTS_TABLE.split('.')[-1]}_{uniq_id[:8].replace('-', '')}"
                 logging.info(temp_table_name)
                 dataset_ref = BQ_CLIENT.dataset(BQ_DATASET)
                 temp_table_ref = dataset_ref.table(temp_table_name)
 
                 logging.info(f"Loading data into temporary table {temp_table_name}")
-                # Load data into the temporary BigQuery table
                 job = BQ_CLIENT.load_table_from_json(
                     rows,
                     temp_table_ref,
@@ -450,6 +481,7 @@ def load_files_to_bigquery():
                     BQ_CLIENT.delete_table(temp_table_ref)
                     logging.info(f"Deleted temporary table {temp_table_name}")
                     logging.info(f"Finished processing file {filename}")
+
                     # rename the file to start with _DONE_
                     try:
                         logging.info(f"Renaming file {filename} to {done_file_path}...")
@@ -581,13 +613,12 @@ def create_and_upload_fulfillments(orders):
                 """)
                 variables[f"fulfillment_{index}"] = fulfillment
 
-            # Combine all mutations into one request
+            # Combine all mutations 
             graphql_query = f"mutation ({', '.join([f'$fulfillment_{i}: FulfillmentV2Input!' for i in range(len(batch))])}) {{ {' '.join(mutations)} }}"
 
             logging.info(f"Executing GraphQL query for batch {chunk_index}.")
             data = execute_graphql_query(graphql_query, variables, SHOPIFY_API_URL)
 
-            # Process the results
             if data:
                 for index, order in enumerate(batch):
                     fulfillment_key = f"fulfillmentCreate{index}"
@@ -650,21 +681,16 @@ def execute_graphql_query(query, variables, url):
 def process_shipments(request):
     """
     Google Cloud Function entry point for processing shipments.
-    
-    Args:
-        request: Flask request object
-        
-    Returns:
-        Flask response object
+
     """
     try:
         logging.info("Starting BBX shipments processing...")
 
         logging.info("Downloading and archiving files...")
-        download_and_archive_files()
+        output_path = download_and_archive_files()
         
         logging.info("Loading files to BigQuery...")
-        load_files_to_bigquery()
+        load_files_to_bigquery(output_path)
 
         logging.info("Getting orders from BigQuery...")
         orders = get_orders_from_bigquery()
