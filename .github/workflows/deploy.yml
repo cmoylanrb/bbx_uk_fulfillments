@@ -30,7 +30,6 @@ jobs:
     
     - name: Deploy Cloud Function
       run: |
-        # Create env-vars file to avoid issues with commas in values
         cat > env-vars.yaml << EOF
         BQ_PROJECT: "${{ env.PROJECT_ID }}"
         BQ_DATASET: "${{ vars.BQ_DATASET }}"
