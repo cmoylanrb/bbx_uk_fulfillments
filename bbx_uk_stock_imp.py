@@ -180,7 +180,7 @@ def load_files_to_bigquery():
 
                     # Read the headers from the third line
                     raw_headers = next(file).strip().split(',')
-                    indexed_headers = [f"{str(i+1).zfill(2)}_{header.replace('"', '').replace(' ', '_').replace('#', '_')}" for i, header in enumerate(raw_headers)]
+                    indexed_headers = [f"{str(i+1).zfill(2)}_{header.replace('\"', '').replace(' ', '_').replace('#', '_')}" for i, header in enumerate(raw_headers)]
 
                     # Start reading the data from the fourth line
                     reader = csv.DictReader(file, delimiter=',', fieldnames=indexed_headers)
