@@ -7,7 +7,6 @@ env:
   PROJECT_ID: ${{ vars.PROJECT_ID }}
   FUNCTION_NAME: ${{ vars.FUNCTION_NAME }}
   REGION: ${{ vars.REGION }}
-  RUNTIME: ${{ vars.RUNTIME }}
   MEMORY: ${{ vars.MEMORY }}
   TIMEOUT: ${{ vars.TIMEOUT }}
   ENTRY_POINT: ${{ vars.ENTRY_POINT }}
